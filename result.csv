@@ -1,0 +1,29 @@
+Machine    ,    ,"Process 1,      "
+Machine    ,    ,"Process 1,      ","Process 2,      "
+Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      "
+Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      "
+Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      ","Process 5,      "
+Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      ","Process 5,      ","Process 6,      "
+Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      ","Process 5,      ","Process 6,      ","Process 7,      "
+
+MANUAL#1,A0: 0 OP110  0,A3: 0 OP110  22,B5: 0 OP110  44
+MANUAL#2,A2: 0 OP110  0
+MANUAL#3,A1: 0 OP110  0,B4: 0 OP110  22
+THERMAL#1-1,A3: 1 OP120  22,B4: 1 OP120  44
+THERMAL#1-2,B5: 1 OP120  22
+THERMAL#1-3
+THERMAL#2-1,A0: 1 OP120  0
+THERMAL#2-2,A1: 1 OP120  0,A2: 1 OP120  44
+THERMAL#2-3
+FD125#1,A2: 4 OP150  0
+FD125#2,A0: 2 OP130  0,A0: 4 OP150  0,A1: 2 OP130  0,A1: 4 OP150  22,A2: 2 OP130  22,B5: 3 OP140  0
+FD125#3,A0: 3 OP140  0,A1: 3 OP140  0,A2: 3 OP140  44,A3: 4 OP150  22,B4: 2 OP130  22,B4: 3 OP140  66,B4: 4 OP150  44,B5: 4 OP150  66
+FD125#4,A3: 2 OP130  0,A3: 3 OP140  22
+FD80
+VTL#2
+VTL#3,B5: 2 OP130  44
+Mazak730
+mazaki800
+MANUAL#4,A2: 5 OP160  0,A3: 5 OP160  22
+MANUAL#5,A0: 5 OP160  22,B5: 5 OP160  66
+MANUAL#6,A1: 5 OP160  22,B4: 5 OP160  22
