@@ -7,6 +7,7 @@ import time
 import threading
 from ga_class import Machine,Process,Order
 import numpy as np
+from enum import Enum
 
 def normalize(min, max, ori_list):
     nor_list = []
@@ -14,16 +15,24 @@ def normalize(min, max, ori_list):
         nor_list.append((x-min)/(max-min))
     return nor_list
 
-def roulette(select_list):
-    sum_val = sum(select_list)
-    random_val = rd.random()
-    probability = 0
-    for i in range(len(select_list)):
-        probability += select_list[i] / sum_val
-        if probability >= random_val:
-            return i
-        else:
-            continue
+# def roulette(select_list):
+#     sum_val = sum(select_list)
+#     random_val = rd.random()
+#     probability = 0
+#     for i in range(len(select_list)):
+#         probability += select_list[i] / sum_val
+#         if probability >= random_val:
+#             return i
+#         else:
+#             continue
+
+class FitnessMode(Enum):
+    TimeFitness = 1
+    CostFitness = 2
+    DateFitness = 3
+    TimeNCostFitness = 4
+    AllFitness = 5
+
 
 class Problem:
     def __init__(self):
@@ -100,7 +109,7 @@ class Problem:
 
 
 class GeneticAl(Problem):
-    def __init__(self, pop_size=300, cross_rate=0.8, mutate_rate=0.1, iteration=200):
+    def __init__(self, pop_size=300, cross_rate=0.1, mutate_rate=0.1, iteration=2000):
         super().__init__()
 #------------------------------------------
         self.gene = []
@@ -121,13 +130,19 @@ class GeneticAl(Problem):
         self.nor_fitTime = []
         self.nor_fitCost = []
         self.fitness = []
-
+#------------------------------------------
+        self.record_fitness = []
+        # self.record_costfit = []
+        # self.record_allfit = []
+#------------------------------------------
         self.best_chrom_op = []
         self.best_chrom_mc = []
-        self.best_fitness = []
+        self.best_fitness = 0
 #------------------------------------------
+
         self.count = []
         self.generate = 0
+        self.fitness_mode = FitnessMode.AllFitness
 
     # 操作編碼，111222333444
     def opEncoder(self,chromosome_op):
@@ -253,215 +268,211 @@ class GeneticAl(Problem):
             if np.max(self.order[i].end) > fit:
                 fit = np.max(self.order[i].end)
 
-        self.fitTime.append(fit)
+        # self.fitTime.append(fit)
         # print('fitTime')
         
         return fit
-    
-    def keepbest(self,index_sort):
-        max_index = index_sort[-1]
-        if self.generate == 0:
-            self.best_chrom_op = self.population_op[max_index]
-            self.best_chrom_mc = self.population_mc[max_index]
-            self.best_fitness.append(self.fitTime[max_index])
-            self.best_fitness.append(self.fitCost[max_index])
-            self.best_fitness.append(self.fitness[max_index])
-        else:
-            if self.best_fitness[2] < self.fitness[max_index]:
-                self.best_chrom_op = self.population_op[max_index]
-                self.best_chrom_mc = self.population_mc[max_index]
-                self.best_fitness[0] = (self.fitTime[max_index])
-                self.best_fitness[1] = (self.fitCost[max_index])
-                self.best_fitness[2] = (self.fitness[max_index])
-        # print('keepbest')
 
 
     def fitMcCostCal(self, chromosome_mc):
         total_cost = 0
         for i in range(len(chromosome_mc)):
             total_cost += int(self.machine_list[chromosome_mc[i]].cost)
-
-        self.fitCost.append(total_cost)
-        # print('fitCost')
-
         return total_cost
 
-
     def fitnessCal(self):
-        min_cost = min(self.fitCost)
-        max_cost = max(self.fitCost)
-        min_time = min(self.fitTime)
-        max_time = max(self.fitTime)
-        self.nor_fitCost = normalize(min_cost, max_cost, self.fitCost)
-        self.nor_fitTime = normalize(min_time, max_time, self.fitTime)
         base = 1
-        for i in range(len(self.nor_fitTime)):
-            self.fitness.append(1/(self.nor_fitCost[i]+base)+1/(self.nor_fitTime[i]+base))
-        # print('fitness-------------')
+        self.fitTime.clear()
+        self.fitCost.clear()
+        self.fitness.clear()
+        if self.fitness_mode == FitnessMode.TimeFitness:
+            for i in range(len(self.population_op)):
+                self.fitTime.append(self.fitTimeCal(self.population_op[i], self.population_mc[i]))
+            min_time = np.min(self.fitTime)
+            max_time = np.max(self.fitTime)
+            self.nor_fitTime = normalize(min_time, max_time, self.fitTime)
+            self.fitness = [1/(x+base) for x in self.nor_fitCost]
+
+        if self.fitness_mode == FitnessMode.CostFitness:
+            for i in range(len(self.population_mc)):
+                self.fitCost.append(self.fitMcCostCal(self.population_mc[i]))
+            min_cost = np.min(self.fitCost)
+            max_cost = np.max(self.fitCost)
+            self.nor_fitCost = normalize(min_cost, max_cost, self.fitCost)
+            self.fitness = [1/(x+base) for x in self.nor_fitCost]
+
+        if self.fitness_mode == FitnessMode.AllFitness:
+            for i in range(len(self.population_op)):
+                self.fitTime.append(self.fitTimeCal(self.population_op[i], self.population_mc[i]))
+                self.fitCost.append(self.fitMcCostCal(self.population_mc[i]))
+            min_cost = np.min(self.fitCost)
+            max_cost = np.max(self.fitCost)
+            min_time = np.min(self.fitTime)
+            max_time = np.max(self.fitTime)
+            self.nor_fitCost = normalize(min_cost, max_cost, self.fitCost)
+            self.nor_fitTime = normalize(min_time, max_time, self.fitTime)
+            for i in range(len(self.nor_fitTime)):
+                self.fitness.append(1/(self.nor_fitCost[i]+base)+1/(self.nor_fitTime[i]+base))
 
     def evaluate(self):
         pass
+
+    def keepbest(self,max_index):
+        if self.generate == 0:
+            self.best_chrom_op = self.population_op[max_index]
+            self.best_chrom_mc = self.population_mc[max_index]
+            self.best_fitness =self.fitness[max_index]
+
+        else:
+            if self.best_fitness < self.fitness[max_index]:
+                self.best_chrom_op = self.population_op[max_index]
+                self.best_chrom_mc = self.population_mc[max_index]
+                self.best_fitness = (self.fitness[max_index])
+
+        if self.fitness_mode == FitnessMode.TimeFitness:
+            self.record_fitness.append(self.fitTime[max_index])
+        elif self.fitness_mode == FitnessMode.CostFitness:
+            self.record_fitness.append(self.fitCost[max_index])
+        elif self.fitness_mode == FitnessMode.AllFitness:
+            self.record_fitness.append(self.fitness[max_index])
 
     def select(self):
         index_sort = np.argsort(self.fitness)
         newpopulation_op = []
         newpopulation_mc = []
-
-        k = 0
+        index_sort = index_sort[::-1]
         for i in range(self.elist_num):
-            newpopulation_op.append(self.population_op[index_sort[k-i]])
-            newpopulation_mc.append(self.population_mc[index_sort[k-i]])
+            newpopulation_op.append(self.population_op[index_sort[i]])
+            newpopulation_mc.append(self.population_mc[index_sort[i]])
 
         for _ in range(self.pop_size - self.elist_num):
-            select_index = roulette(self.fitness)
+            select_index = self.roulette()
             newpopulation_op.append(self.population_op[select_index])
             newpopulation_mc.append(self.population_mc[select_index])
-        self.keepbest(index_sort)
 
-        self.fitCost.clear()
-        self.fitness.clear()
-        self.fitTime.clear()
-        # print('select')
+        self.population_op = newpopulation_op
+        self.population_mc = newpopulation_mc
+        self.keepbest(0)
+
+    def roulette(self):
+        sum_fitness = sum(self.fitness)
+        transition_probability = [fitness/sum_fitness for fitness in self.fitness]
+        rand = rd.random()
+        sum_prob = 0
+
+        for i, prob in enumerate(transition_probability):
+            sum_prob += prob
+            if (sum_prob >= rand):
+                return i
+
     
     def crossover(self):
-        cross_select  = [x for x in range(self.pop_size)]
-        rd.shuffle(cross_select)
+        if len(self.population_mc)%2 == 0:
+            cross_select_list = [x for x in range(len(self.population_mc))]
+            rd.shuffle(cross_select_list)
+        else:
+            cross_select_list = [x for x in range(len(self.population_mc)-1)]
+            rd.shuffle(cross_select_list)
+        for num in range(0,len(cross_select_list),2):
+            k = len(self.population_op[0])
+            rate = rd.random()
+            if rate < self.crossover_rate:
+                cross1 = cross_select_list[num]
+                cross2 = cross_select_list[num+1]
+                crossover_point = rd.randint(0, k-2)
+                chrom1_op_cp = copy.deepcopy(self.population_op[cross1])
+                chrom1_mc_cp = copy.deepcopy(self.population_mc[cross1])
+                chrom2_op_cp = copy.deepcopy(self.population_op[cross2])
+                chrom2_mc_cp = copy.deepcopy(self.population_mc[cross2])
 
-        num = len(self.population_mc[0])
-        for i in range(0,self.pop_size,2):
-            rd_rate = rd.random()
-            firstpoint = rd.randint(0,len(self.population_mc[0]))
-            secondpoint = rd.randint(0,len(self.population_mc[0]))
-            if rd_rate < self.crossover_rate:
-                if firstpoint > secondpoint:
-                    tmp = firstpoint
-                    firstpoint = secondpoint
-                    secondpoint = tmp
+                child1_op = chrom1_op_cp[:crossover_point]
+                child1_mc = chrom1_mc_cp[:crossover_point]
+                child2_op = chrom2_op_cp[:crossover_point]
+                child2_mc = chrom2_mc_cp[:crossover_point]
 
-                parent1_op = copy.deepcopy(self.population_op[i])
-                parent1_mc = copy.deepcopy(self.population_mc[i])
-
-                parent1_de = []
-                parent1_de = self.decoder(parent1_op, parent1_de)
-
-                parent2_op = copy.deepcopy(self.population_op[i+1])
-                parent2_mc = copy.deepcopy(self.population_mc[i+1])
-
-                parent2_de = []
-                parent2_de = self.decoder(parent2_op, parent2_de)
-
-                de1_tmp = []
-                de2_tmp = []
-                op1_tmp = []
-                op2_tmp = []
-                mc1_tmp = []
-                mc2_tmp = []
-
-                cross1_index = []
-                cross2_index = []
-
-                for j in range(firstpoint, secondpoint):
-                    de1_tmp.append(parent1_de[j])
-                    de2_tmp.append(parent2_de[j])
-
-                    op1_tmp.append(parent1_op[j])
-                    op2_tmp.append(parent2_op[j])
-
-                    mc1_tmp.append(parent1_mc[j])
-                    mc2_tmp.append(parent2_mc[j])
-
-                for j in range(secondpoint-firstpoint):
-                    cross1_index.append(parent2_de.index(de1_tmp[j]))
-                    cross2_index.append(parent1_de.index(de2_tmp[j]))
-
-                cross1_index = sorted(cross1_index)
-                cross2_index = sorted(cross2_index)
-                    
-                for k, index in enumerate(cross1_index):
-                    index = index - k
-                    parent2_op.pop(index)
-                    parent2_mc.pop(index)
-                for k, index in enumerate(cross2_index):
-                    index = index - k
-                    parent1_op.pop(index)
-                    parent1_mc.pop(index)
-
-                for j in range(len(op1_tmp)):
-                    parent2_op.insert(secondpoint, op1_tmp[j])
-                    parent1_op.insert(secondpoint, op2_tmp[j])
-                    parent2_mc.insert(secondpoint, mc1_tmp[j])
-                    parent1_mc.insert(secondpoint, mc1_tmp[j])
+                chrom1_de =[]
+                chrom1_de = self.decoder(chrom1_op_cp, chrom1_de)
                 
-                self.population_op.append(parent2_op)
-                self.population_op.append(parent1_op)
+                chrom2_de = []
+                chrom2_de = self.decoder(chrom2_op_cp, chrom2_de)
 
-                self.population_mc.append(parent2_mc)
-                self.population_mc.append(parent1_mc)
-        # print('crossover')
+                chrom1_cross_de = chrom1_de[:crossover_point]
+                chrom2_cross_de = chrom2_de[:crossover_point]
+                chrom1_index = []
+                chrom2_index = []
+
+                for i in range(len(chrom1_cross_de)):
+                    chrom1_index.append(chrom1_de.index(chrom2_cross_de[i]))
+                    chrom2_index.append(chrom2_de.index(chrom1_cross_de[i]))
+                chrom1_index = sorted(chrom1_index)
+                chrom2_index = sorted(chrom2_index)
+                for k, index in enumerate(chrom1_index):
+                    chrom1_op_cp.pop(index - k)
+                    chrom1_mc_cp.pop(index - k)
+                for k, index in enumerate(chrom2_index):
+                    chrom2_op_cp.pop(index - k)
+                    chrom2_mc_cp.pop(index - k)
+
+                child1_op += chrom2_op_cp
+                child1_mc += chrom2_mc_cp
+                child2_op += chrom1_op_cp
+                child2_mc += chrom1_mc_cp
+
+                self.population_op.append(child1_op)
+                self.population_mc.append(child1_mc)
+                self.population_op.append(child2_op)
+                self.population_mc.append(child2_mc)
+            else:
+                continue
+
 
     def mutate(self):
-        for i in range(len(self.population_mc)):
+        for i in range(len(self.population_op)):
             rate = rd.random()
             if rate < self.mutate_rate:
-                chromosome_de = []
-                chromosome_de = self.decoder(self.population_op[i], chromosome_de)
-                index = rd.randint(0, len(self.population_mc[0])-1)
-                num = self.numDict[str(chromosome_de[index])]
-                mutate_chrome = copy.deepcopy(self.population_mc[i])
-                mutate_chrome[index] = self.randMachine(num)
-                ori_fit = self.fitTimeCal(self.population_op[i], self.population_mc[i])
-                mutate_fit = self.fitTimeCal(self.population_op[i], mutate_chrome)
-                if mutate_fit > ori_fit:
-                    self.population_mc[i] = mutate_chrome
+                mutate_point = rd.randint(0,len(self.population_op[0])-1)
+                chrom_de = []
+                chrom_de = self.decoder(self.population_op[i], chrom_de)
+                # print(len(chrom_de))
+                num = self.numDict[str(chrom_de[mutate_point])]
+                chrom_mc_new = copy.deepcopy(self.population_mc[i])
+                chrom_mc_new[mutate_point] = self.randMachine(num)
+                ori_fit = self.fitTimeCal(self.population_op[i],self.population_mc[i])
+                new_fit = self.fitTimeCal(self.population_op[i], chrom_mc_new)
+                if new_fit > ori_fit:
+                    self.population_mc[i] = chrom_mc_new
                 else:
                     continue
             else:
                 continue
 
+
     def iterate(self):
         while self.generate < self.iteration:
             start = time.time()
-            print(len(self.population_mc))
-            for i in range(len(self.population_mc)):
-                self.fitTimeCal(self.population_op[i], self.population_mc[i])
-                self.fitMcCostCal(self.population_mc[i])
-            
             self.fitnessCal()
-            
             self.select()
-            # print(len(self.population_mc))
-            
-            # self.crossover()
-            
-            
-            # self.mutate()
+            print(len(self.population_op))
+            self.crossover()
+            self.mutate()
             end = time.time()
-            print(f"iter:{self.generate}, time = {end-start}")
+            
+            print(f"iter:{self.generate}, fitness: {self.best_fitness}time = {end-start}")
             self.generate +=1
+        print("complete!")
 
 
     def report(self):
         pass
     
     def GA(self):
-        
         self.machineSet()
-        
         self.jobOrderSet()
-        
         self.initialize()
-        # start = time.time()
-        # for i in range(len(self.population_mc)):
-        #     self.fitTimeCal(self.population_op[i], self.population_mc[i])
-        # end = time.time()
-        # print(end-start)
-        # print(self.fitTime)
-        # print(np.min(self.fitTime))
         self.iterate()
-        # print(self.best_chrom_op)
-        # print(self.best_chrom_mc)
-        # print(self.best_fitness)
-        
+        # self.report()
+
+
 
 if __name__ == '__main__':
 

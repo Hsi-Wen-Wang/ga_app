@@ -1,17 +1,53 @@
-from enum import Enum
-from abc import ABC, abstractclassmethod
+# from enum import Enum
+# from abc import ABC, abstractclassmethod
 import random as rd
 import csv
 import copy
 import time
-from queue import Queue
+import threading
+from ga_class import Machine,Process,Order
+import numpy as np
+from enum import Enum
 
-class MachineProblem:
-    def __init__(self, machine_filename, job_filename):
-        self.machine_filename = machine_filename
-        self.job_filename = job_filename
+def normalize(min, max, ori_list):
+    nor_list = []
+    for x in ori_list:
+        nor_list.append((x-min)/(max-min))
+    return nor_list
+
+# def roulette(select_list):
+#     sum_val = sum(select_list)
+#     random_val = rd.random()
+#     probability = 0
+#     for i in range(len(select_list)):
+#         probability += select_list[i] / sum_val
+#         if probability >= random_val:
+#             return i
+#         else:
+#             continue
+
+class FitnessMode(Enum):
+    TimeFitness = 1
+    CostFitness = 2
+    DateFitness = 3
+    TimeNCostFitness = 4
+    AllFitness = 5
+
+
+class Problem:
+    def __init__(self):
+        self.machine_filename = 'test.csv'
+        self.job_filename = 'data.csv'
         self.machine_list = []
-        self.job_list = Chromosome()
+        self.typeDict = {}
+        self.idDict = {}
+        self.numDict = {}
+        # type_list : A01...
+        self.job_type_list  = []
+        # ID_list : 110...
+        self.job_ID_list = []
+        self.order_count = 0
+        self.order = []
 
     def machineSet(self):
         with open (self.machine_filename, newline='') as csvfile:
@@ -19,13 +55,14 @@ class MachineProblem:
             for i in range(2,len(machine_data)):
                 machine_set = Machine()
                 machine_set.machine_name = machine_data[i][0]
-                for j in range(len(machine_data[0])):
+                machine_set.cost = machine_data[i][-1]
+                for j in range(len(machine_data[0])-1):
                     process_do = Process()              
                     if machine_data[i][j] == '1' and machine_data[i][j+1] == '1' and machine_data[1][j] == ('A'):
-                        process_do.typ = 'both'                    
+                        process_do.typ = 'both'
                         process_do.ID = machine_data[0][j]
                         process_do.workTime = machine_data[i][j+2]
-                        machine_set.processing.append(process_do)             
+                        machine_set.processing.append(process_do)
                     elif machine_data[i][j] == '1' and machine_data[i][j+1] != '1' and machine_data[1][j] == ('A'):
                         process_do.typ = 'A'                    
                         process_do.ID = machine_data[0][j]
@@ -38,443 +75,410 @@ class MachineProblem:
                         machine_set.processing.append(process_do)
                 self.machine_list.append(machine_set)
     
-    def job_chromosome_set(self, order=[]):
-        k = 0
+    def jobOrderSet(self):
         with open(self.job_filename, newline='') as csvfile:
             job_data = list(csv.reader(csvfile))
+            k = 0
             for i in range(len(job_data)):
-                for j in range(2, len(job_data[0])):
-                    job_set = Gene()
-                    job_set.typ = job_data[i][0]
-                    job_set.order = i
-                    job_set.ID = job_data[i][j]
-                    job_set.process_machine = randMachine(self.machine_list, job_set)
-                    job_set.current = k
-                    self.job_list.gene.append(job_set)
-                    k += 1
-                tmp = Order()
-                order.append(tmp)
-                k = 0
-        return self.job_list
-        
-class Gene:
-    def __init__(self):
-        self.ID = -1
-        self.order = -1
-        self.typ = 'None'
-        self.process_machine = 'None'
-        self.current = -1
-        self.process = 0
+                tmp_order = Order()
+                for j in range(len(job_data[0])-2):
+                    self.typeDict[(str(i+1)+str(j))] = job_data[i][0]
+                    self.idDict[(str(i+1)+str(j))]=job_data[i][j+2]
+                    self.numDict[(str(i+1)+str(j))] = k
+                    tmp_order.count+=1
+                    k+=1
+                self.order.append(tmp_order)
+        self.job_type_list  = list(self.typeDict.values())
+        self.job_ID_list  = list(self.idDict.values())
 
-class Chromosome:
-    def __init__(self):
+
+    def randMachine(self, num):
+        can_do_list = []
+        result = 0
+        for i in range(len(self.machine_list)):
+            for j in range(len(self.machine_list[i].processing)):
+                if self.machine_list[i].processing[j].typ == self.job_type_list[num][0] and self.machine_list[i].processing[j].ID == self.job_ID_list[num]:
+                    can_do_list.append(i)
+                elif self.machine_list[i].processing[j].typ == 'both' and self.machine_list[i].processing[j].ID == self.job_ID_list[num]:
+                    can_do_list.append(i)
+        if len(can_do_list) <= 0:
+            print(f"Error,{self.job_type_list[num]}{self.job_ID_list[num]} is wrong key, no machine can do!")
+            return
+        result = rd.randint(0, len(can_do_list)-1)
+        return can_do_list[result]
+
+
+class GeneticAl(Problem):
+    def __init__(self, pop_size=300, cross_rate=0.1, mutate_rate=0.1, iteration=2000):
+        super().__init__()
+#------------------------------------------
         self.gene = []
-        self.fitness = 0
-        self.rfitness = 0
-        self.cfitness = 0
-    def calculate_fitness(self):
-        self.fitness = 2
-class Population:
-    def __init__(self):
-        self.chromosome = []
-        self.best_result = 1000
-class Machine:
-    def __init__(self):
-        self.machine_name = 'None'
-        self.time = 0
-        self.waitQueue = []
-        self.processing = []
-        
-class Process:
-    def __init__(self):
-        self.typ = 'Error'
-        self.ID = '-1'
-        self.workTime = -1
-        self.cost = -1
-
-class Order:
-    def __init__(self):
-        self.current = 0
-        self.time = 0
-        
-        
-
-def randMachine(machine_list=[], gene=Gene()):
-    can_do_list = []
-    result = 0
-    for i in range(len(machine_list)):
-        for j in range(len(machine_list[i].processing)):
-            if machine_list[i].processing[j].typ == gene.typ and machine_list[i].processing[j].ID ==gene.ID:
-                can_do_list.append(i)
-            elif machine_list[i].processing[j].typ == 'both' and machine_list[i].processing[j].ID == gene.ID:
-                can_do_list.append(i)
-    if len(can_do_list) <= 0:
-        print(f"Error,{gene.typ}{gene.ID} is wrong key, no machine can do!")
-        return
-    result = rd.randint(0, len(can_do_list)-1)
-    return can_do_list[result]
-
-
-
-class GeneticAl(MachineProblem):
-    def __init__(self, population_size=300, crossover_rate=0.8, mutation_rate=0.1, iteration=20, machine_filename= 'machine_setting.csv', job_filename= 'data.csv'):
-        super().__init__(machine_filename, job_filename)
-        self.population_size = population_size
-        self.crossover_rate = crossover_rate
-        self.mutation_rate = mutation_rate
+        self.population_op = []
+        self.population_mc = []
+        self.sort_population_op = []
+        self.sort_population_mc = []
+#------------------------------------------
+        self.pop_size = pop_size
+        self.crossover_rate = cross_rate
+        self.mutate_rate = mutate_rate
         self.iteration = iteration
-        self.chromosome = Chromosome()
-        self.population = Population()
-        self.order = []
-        self.timeRecord = [0 for x in range(self.population_size)]
-        self.PmutationM = 1
-        self.Pmutation = 1
-        self.Pcrossover = 1
-        self.generation = 0
-        self.util = []
-        self.result_filename = 'result.csv'
-        self.avgFitnessQueue = []
-        self.fitnessQueue = []
+        self.elitist_rate = 0.2
+        self.elist_num = int(self.pop_size*self.elitist_rate)
+#------------------------------------------
+        self.fitTime = []
+        self.fitCost = []
+        self.nor_fitTime = []
+        self.nor_fitCost = []
+        self.fitness = []
+#------------------------------------------
+        self.record_fitness = []
+        # self.record_costfit = []
+        # self.record_allfit = []
+#------------------------------------------
+        self.best_chrom_op = []
+        self.best_chrom_mc = []
+        self.best_fitness = 0
+#------------------------------------------
+
+        self.count = []
+        self.generate = 0
+        self.fitness_mode = FitnessMode.AllFitness
+
+    # 操作編碼，111222333444
+    def opEncoder(self,chromosome_op):
+        for i in range(len(self.order)):
+            for _ in range(self.order[i].count):
+                chromosome_op.append(i+1)
+        return chromosome_op
+    
+    # 解碼，轉成10，11，12，20，21，22...
+    def decoder(self,chromosome_op,chromosome_decode):
+        for i in range(len(chromosome_op)):
+            tmp = chromosome_op[i]
+            chromosome_decode.append(f"{tmp}{self.order[tmp-1].num}")
+            self.order[tmp-1].num += 1
+        for i in range(len(self.order)):
+            self.order[i].num = 0
+        return chromosome_decode
+    
+    # 機器編碼，0，1，2，3...
+    def mcEncoder(self, chromosome_mc,chromosome_decode):
+        for i in range(len(chromosome_decode)):
+            num = self.numDict[str(chromosome_decode[i])]
+            chromosome_mc.append(self.randMachine(num))
+        return chromosome_mc
 
     def initialize(self):
-        self.generation = 0
-        self.population.chromosome.append(self.chromosome)
+        for i in range(self.pop_size):
+            chromosome_op = []
+            chromosome_mc = []
+            chromosome_decode = []
+
+            chromosome_op = self.opEncoder(chromosome_op)
+            rd.shuffle(chromosome_op)
+
+            chromosome_decode = self.decoder(chromosome_op,chromosome_decode)
+            chromosome_mc = self.mcEncoder(chromosome_mc, chromosome_decode)
+
+            self.population_op.append(chromosome_op)
+            self.population_mc.append(chromosome_mc)
+        # print('init')
+
+    def fitTimeCal(self, chromosome_op, chromosome_mc):
         
-        for _ in range(self.population_size):
-            copy_chromosome = copy.deepcopy(self.chromosome)
-            rd.shuffle(copy_chromosome.gene)
-            self.population.chromosome.append(copy_chromosome)
-
-    def fitnessTimeCal(self):
-        # start = time.time()
-        tmp = -1
-        run = 0
-
+        run = True
+        chromosome_decode = []
+        chromosome_decode = self.decoder(chromosome_op,chromosome_decode)
+        
         for i in range(len(self.machine_list)):
             self.machine_list[i].waitQueue.clear()
             self.machine_list[i].time = 0
 
+        for i in range(len(chromosome_mc)):
+            tmp = chromosome_mc[i]
+            self.machine_list[tmp].waitQueue.append(chromosome_decode[i])
+
         for i in range(len(self.order)):
             self.order[i].current = 0
-            self.order[i].time = 0
+            self.order[i].begin.clear()
+            self.order[i].end.clear()
+            self.order[i].begin.append(0)
+        process = 0
 
-        for i in range(len(self.chromosome.gene)):
-            tmp = self.chromosome.gene[i].process_machine
-            self.machine_list[tmp].waitQueue.append(i)
-        k = 1
-        for timer in range(300):
-            
-            run = 0
-            # for i in range(len(self.order)):
-            #     if self.order[i].time != 0:
-            #         self.order[i].time -= 1
-            
+        while run:
+            judge = 0
             for i in range(len(self.machine_list)):
-                if self.machine_list[i].time != 0:
-                    self.machine_list[i].time -= 1
-                if self.machine_list[i].time == 0 and len(self.machine_list[i].waitQueue) != 0:
-                    if self.chromosome.gene[self.machine_list[i].waitQueue[0]].current == self.order[self.chromosome.gene[self.machine_list[i].waitQueue[0]].order].current:
-                        if self.order[self.chromosome.gene[self.machine_list[i].waitQueue[0]].order].time == 0:
-                            # print(f"第{k}次")
-                            # k += 1
-                            for j in range(len(self.machine_list[i].processing)):
-                                # print(f"第{k}次")
-                                # k += 1
-                                # print(f'{self.machine_list[i].processing[j].typ} and {self.chromosome.gene[self.machine_list[i].waitQueue[0]].typ}')
-                                if self.machine_list[i].processing[j].ID == self.chromosome.gene[self.machine_list[i].waitQueue[0]].ID and self.machine_list[i].processing[j].typ == self.chromosome.gene[self.machine_list[i].waitQueue[0]].typ:
-                                    self.machine_list[i].time = int(self.machine_list[i].processing[j].workTime)
-                                    self.order[self.chromosome.gene[self.machine_list[i].waitQueue[0]].order].time = int(self.machine_list[i].processing[j].workTime) + 1    
-                                    break
-                                    # print(f"第{k}次")
-                                    # k += 1
-                                elif self.machine_list[i].processing[j].ID == self.chromosome.gene[self.machine_list[i].waitQueue[0]].ID and self.machine_list[i].processing[j].typ == 'both':
-                                    self.machine_list[i].time = int(self.machine_list[i].processing[j].workTime)
-                                    self.order[self.chromosome.gene[self.machine_list[i].waitQueue[0]].order].time = int(self.machine_list[i].processing[j].workTime) + 1
-                                    break
-                                    # print(f"第{k}次")
-                                    # k += 1
-                            self.timeRecord[self.machine_list[i].waitQueue[0]] = timer
-
-                            self.order[self.chromosome.gene[self.machine_list[i].waitQueue[0]].order].current += 1
-                            self.machine_list[i].waitQueue.pop(0)
-                
-                if self.machine_list[i].time != 0:
-                    run += 1
                 if len(self.machine_list[i].waitQueue) != 0:
-                    run += 1
-            
-            if run == 0:
-                break
-            # end = time.time()
-            # print(f"fitness 執行時間:{end - start}")
-        return timer - 1
+                    num = int(self.machine_list[i].waitQueue[0][0]) - 1
+                    if self.order[num].current == int(self.machine_list[i].waitQueue[0][1]):
+                        for j in range(len(self.machine_list[i].processing)):
+                            if self.machine_list[i].processing[j].typ == self.typeDict[str(self.machine_list[i].waitQueue[0])] and self.machine_list[i].processing[j].ID == self.idDict[str(self.machine_list[i].waitQueue[0])]:
+                                if process == 0:
+                                    self.order[num].end.append(int(self.machine_list[i].processing[j].workTime) + 1)
+                                    self.machine_list[i].time = self.order[num].end[-1]
+                                    self.order[num].current += 1
+                                else:
+                                    if len(self.order[num].end) != 0:
+                                        if self.order[num].end[self.order[num].current - 1] >= self.machine_list[i].time:
+                                            self.order[num].begin.append(self.order[num].end[self.order[num].current - 1])
+                                            self.order[num].end.append(self.order[num].begin[self.order[num].current] + int(self.machine_list[i].processing[j].workTime) + 1)
+                                            self.machine_list[i].time = self.order[num].end[-1]
+                                            self.order[num].current += 1
+                                        else:
+                                            self.order[num].begin.append(self.machine_list[i].time)
+                                            self.order[num].end.append(self.order[num].begin[self.order[num].current] + int(self.machine_list[i].processing[j].workTime) + 1)
+                                            self.machine_list[i].time = self.order[num].end[-1]
+                                            self.order[num].current += 1
+                                    else:
+                                        self.order[num].begin[0] = self.machine_list[i].time
+                                        self.order[num].end.append(self.order[num].begin[self.order[num].current] + int(self.machine_list[i].processing[j].workTime) + 1)
+                                        self.machine_list[i].time = self.order[num].end[-1]
+                                        self.order[num].current += 1
+                            elif self.machine_list[i].processing[j].ID == self.idDict[str(self.machine_list[i].waitQueue[0])] and self.machine_list[i].processing[j].typ == 'both':
+                                if process == 0:
+                                    self.order[num].end.append(int(self.machine_list[i].processing[j].workTime) + 1)
+                                    self.machine_list[i].time = self.order[num].end[-1]
+                                    self.order[num].current += 1
+                                else:
+                                    if len(self.order[num].end) != 0:
+                                        if self.order[num].end[self.order[num].current - 1] >= self.machine_list[i].time:
+                                            self.order[num].begin.append(self.order[num].end[self.order[num].current - 1])
+                                            self.order[num].end.append(self.order[num].begin[self.order[num].current] + int(self.machine_list[i].processing[j].workTime) + 1)
+                                            self.machine_list[i].time = self.order[num].end[-1]
+                                            self.order[num].current += 1
+                                        else:
+                                            self.order[num].begin.append(self.machine_list[i].time)
+                                            self.order[num].end.append(self.order[num].begin[self.order[num].current] + int(self.machine_list[i].processing[j].workTime) + 1)
+                                            self.machine_list[i].time = self.order[num].end[-1]
+                                            self.order[num].current += 1
+                                    else:
+                                        self.order[num].begin[0] = self.machine_list[i].time
+                                        self.order[num].end.append(self.order[num].begin[self.order[num].current] + int(self.machine_list[i].processing[j].workTime) + 1)
+                                        self.machine_list[i].time = self.order[num].end[-1]
+                                        self.order[num].current += 1
+                        process+=1
+                        del self.machine_list[i].waitQueue[0]
+                    judge += 1
 
+            if judge == 0:
+                run = False
+        fit = np.max(self.order[0].end)
+        # print("123")
+        for i in range(len(self.order)):
+            if np.max(self.order[i].end) > fit:
+                fit = np.max(self.order[i].end)
+
+        # self.fitTime.append(fit)
+        # print('fitTime')
         
+        return fit
+
+
+    def fitMcCostCal(self, chromosome_mc):
+        total_cost = 0
+        for i in range(len(chromosome_mc)):
+            total_cost += int(self.machine_list[chromosome_mc[i]].cost)
+        return total_cost
+
+    def fitnessCal(self):
+        base = 1
+        self.fitTime.clear()
+        self.fitCost.clear()
+        self.fitness.clear()
+        if self.fitness_mode == FitnessMode.TimeFitness:
+            for i in range(len(self.population_op)):
+                self.fitTime.append(self.fitTimeCal(self.population_op[i], self.population_mc[i]))
+            min_time = np.min(self.fitTime)
+            max_time = np.max(self.fitTime)
+            self.nor_fitTime = normalize(min_time, max_time, self.fitTime)
+            self.fitness = [1/(x+base) for x in self.nor_fitCost]
+
+        if self.fitness_mode == FitnessMode.CostFitness:
+            for i in range(len(self.population_mc)):
+                self.fitCost.append(self.fitMcCostCal(self.population_mc[i]))
+            min_cost = np.min(self.fitCost)
+            max_cost = np.max(self.fitCost)
+            self.nor_fitCost = normalize(min_cost, max_cost, self.fitCost)
+            self.fitness = [1/(x+base) for x in self.nor_fitCost]
+
+        if self.fitness_mode == FitnessMode.AllFitness:
+            for i in range(len(self.population_op)):
+                self.fitTime.append(self.fitTimeCal(self.population_op[i], self.population_mc[i]))
+                self.fitCost.append(self.fitMcCostCal(self.population_mc[i]))
+            min_cost = np.min(self.fitCost)
+            max_cost = np.max(self.fitCost)
+            min_time = np.min(self.fitTime)
+            max_time = np.max(self.fitTime)
+            self.nor_fitCost = normalize(min_cost, max_cost, self.fitCost)
+            self.nor_fitTime = normalize(min_time, max_time, self.fitTime)
+            for i in range(len(self.nor_fitTime)):
+                self.fitness.append(1/(self.nor_fitCost[i]+base)+1/(self.nor_fitTime[i]+base))
+
     def evaluate(self):
-        
-        for popCount in range(self.population_size+1):
-            # start = time.time()
-            self.chromosome = self.population.chromosome[popCount]
-            # end = time.time()
-            # print(f"evaluate 執行時間:{end - start}")
-            # start = time.time()
-            self.population.chromosome[popCount].fitness = self.fitnessTimeCal()
-            # end = time.time()
-            # print(f"evaluate2 執行時間:{end - start}")
-        
-        
+        pass
 
+    def keepbest(self,max_index):
+        if self.generate == 0:
+            self.best_chrom_op = self.population_op[max_index]
+            self.best_chrom_mc = self.population_mc[max_index]
+            self.best_fitness =self.fitness[max_index]
 
-    def selection(self):
-        # start = time.time()
-        sum = 0
-        p = 0
-        newpopulation = Population()
-        newpopulation = self.population
-        for mem in range(self.population_size):
-            sum += (1/self.population.chromosome[mem].fitness)
-
-        for mem in range(self.population_size):
-            self.population.chromosome[mem].rfitness = 1 / (sum * self.population.chromosome[mem].fitness)
-        
-        self.population.chromosome[0].cfitness = self.population.chromosome[0].rfitness
-
-        for mem in range(1, self.population_size):
-            self.population.chromosome[mem].cfitness = self.population.chromosome[mem - 1].cfitness + self.population.chromosome[mem].rfitness
-
-        for i in range(self.population_size):
-            p = rd.randrange(32768)%1000 / 1000.0
-            if p < self.population.chromosome[0].cfitness:
-                newpopulation.chromosome[i] = self.population.chromosome[0]
-
-            else:
-                for j in range(self.population_size):
-                    if p >= self.population.chromosome[j].cfitness and self.population.chromosome[j+1].cfitness:
-                        newpopulation.chromosome[i] = self.population.chromosome[j+1]
-
-        self.population = newpopulation
-
-        # end = time.time()
-        # print(f"selection 執行時間:{end - start}")
-
-
-    def elitist(self):
-        # start = time.time()
-        best_mem = 0
-        worst_mem = 0
-        best = self.population.chromosome[0].fitness
-        worst = self.population.chromosome[0].fitness
-
-        for i in range(self.population_size):
-            if self.population.chromosome[i].fitness > self.population.chromosome[i+1].fitness:
-                if self.population.chromosome[i].fitness >= worst:
-                    worst = self.population.chromosome[i].fitness
-                    worst_mem = i
-
-                if self.population.chromosome[i+1].fitness <= best:
-                    best = self.population.chromosome[i+1].fitness
-                    best_mem = i + 1
-
-            else:
-                if self.population.chromosome[i].fitness <= best:
-                    best = self.population.chromosome[i].fitness
-                    best_mem = i
-                if self.population.chromosome[i+1].fitness >= worst:
-                    worst = self.population.chromosome[i+1].fitness
-                    worst_mem = i + 1
-
-        if best < self.population.chromosome[self.population_size].fitness:
-            for i in range(len(self.population.chromosome[self.population_size].gene)):
-                self.population.chromosome[self.population_size].gene[i] = self.population.chromosome[best_mem].gene[i]
-
-            self.population.chromosome[self.population_size].fitness = self.population.chromosome[best_mem].fitness
         else:
-            self.population.chromosome[worst_mem].gene = self.population.chromosome[self.population_size].gene
+            if self.best_fitness < self.fitness[max_index]:
+                self.best_chrom_op = self.population_op[max_index]
+                self.best_chrom_mc = self.population_mc[max_index]
+                self.best_fitness = (self.fitness[max_index])
 
-            self.population.chromosome[worst_mem].fitness = self.population.chromosome[self.population_size].fitness
+        if self.fitness_mode == FitnessMode.TimeFitness:
+            self.record_fitness.append(self.fitTime[max_index])
+        elif self.fitness_mode == FitnessMode.CostFitness:
+            self.record_fitness.append(self.fitCost[max_index])
+        elif self.fitness_mode == FitnessMode.AllFitness:
+            self.record_fitness.append(self.fitness[max_index])
 
-        # end = time.time()
-        # print(f"elitist 執行時間:{end - start}")
+    def select(self):
+        index_sort = np.argsort(self.fitness)
+        newpopulation_op = []
+        newpopulation_mc = []
+        index_sort = index_sort[::-1]
+        for i in range(self.elist_num):
+            newpopulation_op.append(self.population_op[index_sort[i]])
+            newpopulation_mc.append(self.population_mc[index_sort[i]])
+
+        for _ in range(self.pop_size - self.elist_num):
+            select_index = self.roulette()
+            newpopulation_op.append(self.population_op[select_index])
+            newpopulation_mc.append(self.population_mc[select_index])
+
+        self.population_op = newpopulation_op
+        self.population_mc = newpopulation_mc
+        self.keepbest(0)
+
+    def roulette(self):
+        sum_fitness = sum(self.fitness)
+        transition_probability = [fitness/sum_fitness for fitness in self.fitness]
+        rand = rd.random()
+        sum_prob = 0
+
+        for i, prob in enumerate(transition_probability):
+            sum_prob += prob
+            if (sum_prob >= rand):
+                return i
+            elif i == len(transition_probability):
+                return i
+            else:
+                continue
 
     
     def crossover(self):
-        # start = time.time()
-        for i in range(self.population_size):
-            x = rd.randrange(32768)%1000/1000.0
-            if x < self.Pmutation:
-                firstPoint = rd.randint(0, len(self.population.chromosome[i].gene))
-                secondPoint = rd.randint(0, len(self.population.chromosome[i].gene))
+        if len(self.population_mc)%2 == 0:
+            cross_select_list = [x for x in range(len(self.population_mc))]
+            rd.shuffle(cross_select_list)
+        else:
+            cross_select_list = [x for x in range(len(self.population_mc)-1)]
+            rd.shuffle(cross_select_list)
+        for num in range(0,len(cross_select_list),2):
+            k = len(self.population_op[0])
+            rate = rd.random()
+            if rate < self.crossover_rate:
+                cross1 = cross_select_list[num]
+                cross2 = cross_select_list[num+1]
+                crossover_point = rd.randint(0, k-2)
+                chrom1_op_cp = copy.deepcopy(self.population_op[cross1])
+                chrom1_mc_cp = copy.deepcopy(self.population_mc[cross1])
+                chrom2_op_cp = copy.deepcopy(self.population_op[cross2])
+                chrom2_mc_cp = copy.deepcopy(self.population_mc[cross2])
 
-                if secondPoint < firstPoint:
-                    temp = firstPoint
-                    firstPoint = secondPoint
-                    secondPoint = temp
+                child1_op = chrom1_op_cp[:crossover_point]
+                child1_mc = chrom1_mc_cp[:crossover_point]
+                child2_op = chrom2_op_cp[:crossover_point]
+                child2_mc = chrom2_mc_cp[:crossover_point]
+
+                chrom1_de =[]
+                chrom1_de = self.decoder(chrom1_op_cp, chrom1_de)
                 
-                for j in range(firstPoint, secondPoint):
-                    for k in range(len(self.population.chromosome[i].gene)):
-                        if self.population.chromosome[i].gene[k].current == self.population.chromosome[self.population_size].gene[j].current and self.population.chromosome[i].gene[k].order == self.population.chromosome[self.population_size].gene[j].order:
-                            del self.population.chromosome[i].gene[k]
-                            break
+                chrom2_de = []
+                chrom2_de = self.decoder(chrom2_op_cp, chrom2_de)
 
-                for j in range(firstPoint, secondPoint):
-                    mid = len(self.population.chromosome[i].gene) / 2
-                    mid = int(mid)
-                    self.population.chromosome[i].gene.insert(mid, self.population.chromosome[self.population_size].gene[j])
-        
-        # end = time.time()
-        # print(f"crossover 執行時間:{end - start}")
+                chrom1_cross_de = chrom1_de[:crossover_point]
+                chrom2_cross_de = chrom2_de[:crossover_point]
+                chrom1_index = []
+                chrom2_index = []
 
-    def keepBest(self):
-        # start = time.time()
-        cur_best = 0
-        self.population.chromosome[self.population_size].fitness = 9999
+                for i in range(len(chrom1_cross_de)):
+                    chrom1_index.append(chrom1_de.index(chrom2_cross_de[i]))
+                    chrom2_index.append(chrom2_de.index(chrom1_cross_de[i]))
+                chrom1_index = sorted(chrom1_index)
+                chrom2_index = sorted(chrom2_index)
+                for k, index in enumerate(chrom1_index):
+                    chrom1_op_cp.pop(index - k)
+                    chrom1_mc_cp.pop(index - k)
+                for k, index in enumerate(chrom2_index):
+                    chrom2_op_cp.pop(index - k)
+                    chrom2_mc_cp.pop(index - k)
 
-        for popCount in range(self.population_size):
-            if self.population.chromosome[popCount].fitness < self.population.chromosome[self.population_size].fitness:
-                cur_best = popCount
-                self.population.chromosome[self.population_size].fitness = self.population.chromosome[popCount].fitness
+                child1_op += chrom2_op_cp
+                child1_mc += chrom2_mc_cp
+                child2_op += chrom1_op_cp
+                child2_mc += chrom1_mc_cp
 
-        for i in range(len(self.population.chromosome[self.population_size].gene)):
-            self.population.chromosome[self.population_size].gene[i] = self.population.chromosome[cur_best].gene[i]
-        # end = time.time()
-        # print(f"keepBest 執行時間:{end - start}")
+                self.population_op.append(child1_op)
+                self.population_mc.append(child1_mc)
+                self.population_op.append(child2_op)
+                self.population_mc.append(child2_mc)
+            else:
+                continue
 
 
     def mutate(self):
-        # start = time.time()
-        for i in range(self.population_size):
-            x = rd.randrange(32768)%1000/1000.0
-            if x < self.Pmutation:
-                for j in range(10):
-                    firstPoint = rd.randint(0, len(self.population.chromosome[i].gene) - 1)
-                    secondPoint = rd.randint(0, len(self.population.chromosome[i].gene) - 1)
-                    self.population.chromosome[i].gene[firstPoint], self.population.chromosome[i].gene[secondPoint] = self.population.chromosome[i].gene[secondPoint], self.population.chromosome[i].gene[firstPoint]
+        for i in range(len(self.population_op)):
+            rate = rd.random()
+            if rate < self.mutate_rate:
+                mutate_point = rd.randint(0,len(self.population_op[0])-1)
+                chrom_de = []
+                chrom_de = self.decoder(self.population_op[i], chrom_de)
+                # print(len(chrom_de))
+                num = self.numDict[str(chrom_de[mutate_point])]
+                chrom_mc_new = copy.deepcopy(self.population_mc[i])
+                chrom_mc_new[mutate_point] = self.randMachine(num)
+                ori_fit = self.fitTimeCal(self.population_op[i],self.population_mc[i])
+                new_fit = self.fitTimeCal(self.population_op[i], chrom_mc_new)
+                if new_fit > ori_fit:
+                    self.population_mc[i] = chrom_mc_new
+                else:
+                    continue
+            else:
+                continue
 
-        for i in range(self.population_size):
-            for j in range(len(self.population.chromosome[i].gene)):
-                x = rd.randrange(32768)%1000/1000.0
-                if x < self.PmutationM:
-                    self.population.chromosome[i].gene[j].process_machine = randMachine(self.machine_list, self.population.chromosome[i].gene[j])
 
-        # end = time.time()
-        # print(f"mutate 執行時間:{end - start}")
+    def iterate(self):
+        while self.generate < self.iteration:
+            start = time.time()
+            self.fitnessCal()
+            self.select()
+            print(len(self.population_op))
+            self.crossover()
+            self.mutate()
+            end = time.time()
+            
+            print(f"iter:{self.generate}, fitness: {self.best_fitness}time = {end-start}")
+            self.generate +=1
+        print("complete!")
+
 
     def report(self):
-        # start = time.time()
-        avg = .0
-
-        if self.generation % 20 == 0:
-            self.util.clear()
-            maxProcess = 0
-            self.chromosome = self.population.chromosome[self.population_size]
-            self.fitnessTimeCal()
-
-            for i in range (len(self.machine_list)):
-                self.machine_list[i].waitQueue.clear()
-
-            for i in range(len(self.population.chromosome[self.population_size].gene)):
-                tmp = self.population.chromosome[self.population_size].gene[i].process_machine
-                self.machine_list[tmp].waitQueue.append(i)
-                if len(self.machine_list[tmp].waitQueue) > maxProcess:
-                    maxProcess += 1
-
-            with open(self.result_filename, 'w', newline='') as csvfile:
-                writer = csv.writer(csvfile)
-                recordList = ['Machine    ']
-                recordList.append('    ')
-                endl = []
-
-                for i in range(1, maxProcess):
-                    recordList.append(f"Process {i},      ")
-                    writer.writerow(recordList)
-                writer.writerow(endl)
-                for i in range(len(self.machine_list)):
-                    utilTime = 0
-
-                    machine_record = []
-                    machine_record.append(self.machine_list[i].machine_name)
-                    
-                    for j in range(len(self.machine_list[i].waitQueue)):
-                        machine_record.append(f"{self.population.chromosome[self.population_size].gene[self.machine_list[i].waitQueue[j]].typ}{self.population.chromosome[self.population_size].gene[self.machine_list[i].waitQueue[j]].order}: {self.population.chromosome[self.population_size].gene[self.machine_list[i].waitQueue[j]].current} OP{self.population.chromosome[self.population_size].gene[self.machine_list[i].waitQueue[j]].ID}  {self.timeRecord[self.machine_list[i].waitQueue[j]]}")
-
-                        for k in range(len(self.machine_list[i].processing)):
-                            if self.machine_list[i].processing[k].ID == self.population.chromosome[self.population_size].gene[self.machine_list[i].waitQueue[j]].ID:
-                                utilTime += int(self.machine_list[i].processing[k].workTime)
-                                break
-                    writer.writerow(machine_record)
-
-                    self.util.append(utilTime/self.population.chromosome[self.population_size].fitness)
-
-        for i in range(self.population_size):
-            avg += self.population.chromosome[i].fitness / self.population_size
-
-        self.avgFitnessQueue.append(avg)
-        self.fitnessQueue.append(self.population.chromosome[self.population_size].fitness)
-        print(f"iter:{self.generation}:{self.population.chromosome[self.population_size].fitness} adverge:{avg}")
-        # end = time.time()
-        # print(f"report 執行時間:{end - start}")
-
+        pass
     
-    def iterate(self, show):
-        start = time.time()
-        self.generation += 1
-        self.selection()
-        end = time.time()
-        print(f"selection 執行時間:{end - start}")
-        start = time.time()
-        self.crossover()
-        end = time.time()
-        print(f"crossover 執行時間:{end - start}")
-        start = time.time()
-        self.mutate()
-        end = time.time()
-        print(f"mutate 執行時間:{end - start}")
-
-        if show == True:
-            start = time.time()
-            self.report()
-            end = time.time()
-            print(f"report 執行時間:{end - start}")
-        start = time.time()
-        self.evaluate()
-        end = time.time()
-        print(f"evalutate 執行時間:{end - start}")
-        start = time.time()
-        self.elitist()
-        end = time.time()
-        print(f"elitist 執行時間:{end - start}")
-        # end = time.time()
-        # print(f"iterate 執行時間:{end - start}")
-
-    # def calculate(self, show)
-    #     self.
-
-    def ga(self):
+    def GA(self):
         self.machineSet()
-        self.chromosome = self.job_chromosome_set(self.order)
-
-        self.population.chromosome.append(self.chromosome)
+        self.jobOrderSet()
         self.initialize()
-        
-
-        self.evaluate()
-        self.keepBest()
-        # for i in range(len(self.population.chromosome)):
-        #     print(self.population.chromosome[i].fitness)
-
-        while self.generation < self.iteration:
-            self.iterate(True)
-        
-        print("sucess")
-
-        
+        self.iterate()
+        # self.report()
 
 
 
 if __name__ == '__main__':
+
     ga = GeneticAl()
-    ga.ga()
-
-
-    
-    
+    ga.GA()
