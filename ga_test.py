@@ -364,6 +364,10 @@ class GeneticAl(Problem):
             sum_prob += prob
             if (sum_prob >= rand):
                 return i
+            elif i == len(transition_probability):
+                return i
+            else:
+                continue
 
     
     def crossover(self):

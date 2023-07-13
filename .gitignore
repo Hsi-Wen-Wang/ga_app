@@ -163,5 +163,6 @@ cython_debug/
 testing.py
 test.csv
 test2.csv
-
+figure/
 ga_class.py
+test/

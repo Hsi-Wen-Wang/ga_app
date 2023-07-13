@@ -1,29 +1,22 @@
-Machine    ,    ,"Process 1,      "
-Machine    ,    ,"Process 1,      ","Process 2,      "
-Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      "
-Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      "
-Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      ","Process 5,      "
-Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      ","Process 5,      ","Process 6,      "
-Machine    ,    ,"Process 1,      ","Process 2,      ","Process 3,      ","Process 4,      ","Process 5,      ","Process 6,      ","Process 7,      "
-
-MANUAL#1,A0: 0 OP110  0,A3: 0 OP110  22,B5: 0 OP110  44
-MANUAL#2,A2: 0 OP110  0
-MANUAL#3,A1: 0 OP110  0,B4: 0 OP110  22
-THERMAL#1-1,A3: 1 OP120  22,B4: 1 OP120  44
-THERMAL#1-2,B5: 1 OP120  22
+Machine Name\execute,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end,job,start,end
+MANUAL#1
+MANUAL#2,A1:0:110,0,23,A0:0:110,23,46
+MANUAL#3
+THERMAL#1-1,A3:0:120,0,37
+THERMAL#1-2,A1:1:120,23,60
 THERMAL#1-3
-THERMAL#2-1,A0: 1 OP120  0
-THERMAL#2-2,A1: 1 OP120  0,A2: 1 OP120  44
+THERMAL#2-1,A0:1:120,46,83
+THERMAL#2-2,B5:0:120,0,37
 THERMAL#2-3
-FD125#1,A2: 4 OP150  0
-FD125#2,A0: 2 OP130  0,A0: 4 OP150  0,A1: 2 OP130  0,A1: 4 OP150  22,A2: 2 OP130  22,B5: 3 OP140  0
-FD125#3,A0: 3 OP140  0,A1: 3 OP140  0,A2: 3 OP140  44,A3: 4 OP150  22,B4: 2 OP130  22,B4: 3 OP140  66,B4: 4 OP150  44,B5: 4 OP150  66
-FD125#4,A3: 2 OP130  0,A3: 3 OP140  22
-FD80
-VTL#2
-VTL#3,B5: 2 OP130  44
+FD125#1,A2:0:130,0,7,A3:1:130,37,44,A1:2:130,60,67,B5:2:140,67,95,A3:3:150,95,153
+FD125#2,B4:0:140,0,28,A2:1:140,28,56,A1:3:140,67,95,A2:2:150,95,153
+FD125#3,A3:2:140,44,72,A0:2:130,83,90,A0:4:150,118,176,B5:3:150,176,234
+FD125#4,B4:1:150,28,86,A0:3:140,90,118
+FD80,A1:4:150,95,153
+VTL#2,B5:1:130,37,44
+VTL#3
 Mazak730
 mazaki800
-MANUAL#4,A2: 5 OP160  0,A3: 5 OP160  22
-MANUAL#5,A0: 5 OP160  22,B5: 5 OP160  66
-MANUAL#6,A1: 5 OP160  22,B4: 5 OP160  22
+MANUAL#4
+MANUAL#5,A1:5:160,153,184
+MANUAL#6,A0:5:160,176,207
