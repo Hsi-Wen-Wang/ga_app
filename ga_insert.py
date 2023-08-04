@@ -29,7 +29,7 @@ class SchedulMode(Enum):
 class Problem:
     def __init__(self):
         self.machine_filename = 'machine_setting.csv'
-        self.job_filename = 'data.csv'
+        self.job_filename = 'data_insert.csv'
         self.machine_list = []
         self.typeDict = {}
         self.idDict = {}
@@ -41,7 +41,7 @@ class Problem:
         self.order_count = 0
         self.order = []
         self.urgent_order = []
-        self.schedul_mode = SchedulMode.NormalMode
+        self.schedul_mode = SchedulMode.InsertMode
     # 機器設定
     def machineSet(self):
         with open (self.machine_filename, newline='') as csvfile:
